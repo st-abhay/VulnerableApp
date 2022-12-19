@@ -25,12 +25,7 @@ pipeline {
      
  stage ('Check-Git-Secrets') {
       steps {
-        sh 'sudo chmod 666 /var/run/docker.sock'
-        //sh 'sudo docker run raphaelareya/gitleaks:latest -r https://github.intra.fcagroup.com/t0996su/CICD.git'
-        // sh 'sshpass -p Stellantis01 ssh devuser@10.109.137.30 "exit 0" '
-        
-        sh 'rm trufflehog || true'
-        sh 'docker run gesellix/trufflehog --json https://github.com/cehkunal/webapp.git > trufflehog'
+        sh 'docker run gesellix/trufflehog --json https://github.com/st-abhay/VulnerableApp.git > trufflehog'
         sh 'cat trufflehog'
       }
     }  
@@ -52,7 +47,7 @@ pipeline {
     stage ('Container Scan') {
        steps {
             sh 'docker run aquasec/trivy:0.18.3 vulnerables/phpldapadmin-remote-dump'
-            sh 'docker run aquasec/trivy:0.18.3 repo https://github.intra.fcagroup.com/t0996su/CICD.git'
+            sh 'docker run aquasec/trivy:0.18.3 repo https://github.com/st-abhay/VulnerableApp.git'
             sh 'docker run aquasec/trivy:0.18.3 image vulnerables/web-dvwa:latest'
              }
              }        
