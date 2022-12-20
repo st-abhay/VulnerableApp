@@ -31,7 +31,7 @@ pipeline {
     //}  
     
     
-  stage ('DJScan') {
+  stage ('SCA') {
        steps {
              dependencyCheck additionalArguments: ''' 
               -o "./" 
@@ -40,17 +40,19 @@ pipeline {
               --prettyPrint''', odcInstallation: 'dcheck'
               dependencyCheckPublisher pattern: 'dependency-check-report.xml'
               sh 'cat dependency-check-report.xml'
+              sh 'ls'
               sh 'curl -X POST "http://10.66.173.133:8080/api/v2/import-scan/" -H "accept: application/json" -H "Authorization: Token 779ceb6db281a9dbe41ef48bbbc2e8d925b9b2dd" -H "Content-Type: multipart/form-data" -H "X-CSRFToken: hdec09ZzEDciBQsZqTgXHKJt97jTKyoipLplwQ7sgCO5n0xPP6Z0DhhzwRVMIyJ0" -F "minimum_severity=Info" -F "active=true" -F "verified=true" -F "scan_type=Dependency Check Scan" -F "file=@dependency-check-report.xml;type=text/xml" -F "product_name=ST-DevSecOps" -F "engagement_name=ST-DevSecOps" -F "close_old_findings=false" -F "push_to_jira=false"'         
             }
         }       
-         
-    stage ('Container Scan') {
-       steps {
-            sh 'docker run aquasec/trivy:0.18.3 vulnerables/phpldapadmin-remote-dump'
-            sh 'docker run aquasec/trivy:0.18.3 repo https://github.com/st-abhay/VulnerableApp.git'
-            sh 'docker run aquasec/trivy:0.18.3 image vulnerables/web-dvwa:latest'
-             }
-             }        
+    
+    stages {
+    stage('SAST') {
+        steps {
+            sh 'curl -fsSL https://raw.githubusercontent.com/ZupIT/horusec/main/deployments/scripts/install.sh | bash -s latest'
+            sh 'horusec start -p="./" -e="true"'
+        }
+    }
+          
     
  stage ('AppScan Cloud SAST') {
          steps {
@@ -65,7 +67,14 @@ pipeline {
      }
     }
 
-
+stage ('Container Scan') {
+       steps {
+            sh 'docker run aquasec/trivy:0.18.3 vulnerables/phpldapadmin-remote-dump'
+            sh 'docker run aquasec/trivy:0.18.3 repo https://github.com/st-abhay/VulnerableApp.git'
+            sh 'docker run aquasec/trivy:0.18.3 image vulnerables/web-dvwa:latest'
+             }
+             }  
+      
     stage ('Deploy') {
      steps {
             echo test
