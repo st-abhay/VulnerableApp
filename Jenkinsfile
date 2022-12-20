@@ -23,12 +23,12 @@ pipeline {
     } 
     
      
- stage ('Check-Git-Secrets') {
-      steps {
-        sh 'docker run gesellix/trufflehog --json https://github.com/st-abhay/VulnerableApp.git > trufflehog'
-        sh 'cat trufflehog'
-      }
-    }  
+ //stage ('Check-Git-Secrets') {
+      //steps {
+        //sh 'docker run gesellix/trufflehog --json https://github.com/st-abhay/VulnerableApp.git > trufflehog'
+        //sh 'cat trufflehog'
+      //}
+    //}  
     
     
   stage ('DJScan') {
