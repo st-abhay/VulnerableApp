@@ -38,8 +38,8 @@ pipeline {
               -s "./"
               -f "ALL" 
               --prettyPrint''', odcInstallation: 'dcheck'
-              dependencyCheckPublisher pattern: 'dependency-check-report.xml'       
-              sh 'sudo cp -r /var/lib/jenkins/workspace/DJScan/./dependency-check-report.html  /var/www/html/DevSecOps'
+              dependencyCheckPublisher pattern: 'dependency-check-report.xml'
+              sh 'cat dependency-check-report.xml'
               sh 'curl -X POST "http://10.66.173.133:8080/api/v2/import-scan/" -H "accept: application/json" -H "Authorization: Token 779ceb6db281a9dbe41ef48bbbc2e8d925b9b2dd" -H "Content-Type: multipart/form-data" -H "X-CSRFToken: hdec09ZzEDciBQsZqTgXHKJt97jTKyoipLplwQ7sgCO5n0xPP6Z0DhhzwRVMIyJ0" -F "minimum_severity=Info" -F "active=true" -F "verified=true" -F "scan_type=Dependency Check Scan" -F "file=@dependency-check-report.xml;type=text/xml" -F "product_name=ST-DevSecOps" -F "engagement_name=ST-DevSecOps" -F "close_old_findings=false" -F "push_to_jira=false"'         
             }
         }       
