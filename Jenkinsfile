@@ -85,7 +85,6 @@ stage ('Container Scan') {
       steps {
       appscan application: '4130440a-8227-4b5f-b846-e4ef704931fb', credentials: 'HCLEnt', name: 'DevSecOps_DAST', scanner: dynamic_analyzer(hasOptions: false, loginType: 'None', optimization: 'Fast', scanType: 'Staging', target: 'http://altoromutual.com:8080/login.jsp'), type: 'Dynamic Analyzer'
      } 
-    } 
- 
-    
+    }
+   }   
   }
