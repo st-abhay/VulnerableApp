@@ -1,90 +1,97 @@
-pipeline {
-  agent any 
-             
-  tools {
-    maven 'maven'
-  }
-        
-  environment {
-    Snyk = 'Snyk'
-    Trivy = 'Trivy'
-    Audit = 'Audit'
-  }
-  
-  stages {
-    stage ('Initialize') {
-      steps {
-        sh '''
-                    echo "PATH = ${PATH}"
-                    echo "M2_HOME = ${M2_HOME}"
-                  
-            ''' 
-      }
-    } 
-    
-     
- stage ('Check-Git-Secrets') {
-      steps {
-        sh 'docker run gesellix/trufflehog --json https://github.com/st-abhay/VulnerableApp.git > trufflehog'
-        sh 'cat trufflehog'
-      }
-    }  
-    
-    
-  stage ('SCA') {
-       steps {
-             dependencyCheck additionalArguments: ''' 
-              -o "./" 
-              -s "./"
-              -f "ALL" 
-              --prettyPrint''', odcInstallation: 'dcheck'
-              dependencyCheckPublisher pattern: 'dependency-check-report.xml'
-              sh 'cat dependency-check-report.xml'
-              sh 'ls'
-              sh 'curl -X POST "http://10.66.173.133:8080/api/v2/import-scan/" -H "accept: application/json" -H "Authorization: Token 779ceb6db281a9dbe41ef48bbbc2e8d925b9b2dd" -H "Content-Type: multipart/form-data" -H "X-CSRFToken: hdec09ZzEDciBQsZqTgXHKJt97jTKyoipLplwQ7sgCO5n0xPP6Z0DhhzwRVMIyJ0" -F "minimum_severity=Info" -F "active=true" -F "verified=true" -F "scan_type=Dependency Check Scan" -F "file=@dependency-check-report.xml;type=text/xml" -F "product_name=ST-DevSecOps" -F "engagement_name=ST-DevSecOps" -F "close_old_findings=false" -F "push_to_jira=false"'         
-            }
-        }       
-    
-    stages {
-    stage('SAST') {
-        steps {
-            sh 'curl -fsSL https://raw.githubusercontent.com/ZupIT/horusec/main/deployments/scripts/install.sh | bash -s latest'
-            sh 'horusec start -p="./" -e="true"'
-        }
-    }
-          
-    
- stage ('AppScan Cloud SAST') {
-         steps {
-            appscan application: '4130440a-8227-4b5f-b846-e4ef704931fb', credentials: 'HCLEnt', name: 'DevSecOps', scanner: static_analyzer(hasOptions: false, target: '/var/lib/jenkins/workspace/DevSecOps/'), type: 'Static Analyzer'
-      } 
-    }
-    
-   
-   stage ('Build') {
-      steps {
-      sh 'mvn clean package'
-     }
-    }
+pipeline{
+ agent any
+ 
+tools{
+ gradle 'Gradle'
+ }
+ 
+stages {
+ stage ('Software Composition Analysis'){
+ steps {
+ sh 'sudo dependency-check.sh --scan . -f XML -o .'
+ sh 'curl -X POST "http://192.168.6.241:8080/api/v2/import-scan/" -H "accept: application/json" -H "Authorization: Token c50c94737824e0bd561315ce8ee856849f5ba88f" -H "Content-Type: multipart/form-data" -H "X-CSRFToken: IoIe6juCf8QQxBkvAZR6aH0c0DvcZvsrcRlMvwNogRAsMfMfFBeTo9cC3yNMGdUp" -F "minimum_severity=Info" -F "active=true" -F "verified=true" -F "scan_type=Dependency Check Scan" -F "file=@dependency-check-report.xml;type=text/xml" -F "product_name=TX-DevSecOps" -F "engagement_name=DevSecOps-TX" -F "close_old_findings=false" -F "push_to_jira=false"' 
+} 
+}
+ stage('Static Code Analysis') {
+ steps {
+ // SAST
+ sh './gradlew sonarqube \
+ -Dsonar.projectKey=TX-DevSecOps \
+ -Dsonar.host.url=http://192.168.6.238:9000 \
+ -Dsonar.login=b228c4c2fb84af14b5787bd3856110686539a83b'
 
-stage ('Container Scan') {
-       steps {
-            sh 'docker run aquasec/trivy:0.18.3 vulnerables/phpldapadmin-remote-dump'
-            sh 'docker run aquasec/trivy:0.18.3 repo https://github.com/st-abhay/VulnerableApp.git'
-            sh 'docker run aquasec/trivy:0.18.3 image vulnerables/web-dvwa:latest'
-             }
-             }  
-      
-    stage ('Deploy') {
-     steps {
-            echo test
-       }
-    }
-      
-  stage ('Appscan Cloud DAST') {
-      steps {
-      appscan application: '4130440a-8227-4b5f-b846-e4ef704931fb', credentials: 'HCLEnt', name: 'DevSecOps_DAST', scanner: dynamic_analyzer(hasOptions: false, loginType: 'None', optimization: 'Fast', scanType: 'Staging', target: 'http://altoromutual.com:8080/login.jsp'), type: 'Dynamic Analyzer'
-     } 
-    }
-   }   
-  }
+ sh 'curl -X POST "http://192.168.6.241:8080/api/v2/import-scan/" -H "accept: application/json" -H "Authorization: Token c50c94737824e0bd561315ce8ee856849f5ba88f" -H "Content-Type: multipart/form-data" -H "X-CSRFToken: IoIe6juCf8QQxBkvAZR6aH0c0DvcZvsrcRlMvwNogRAsMfMfFBeTo9cC3yNMGdUp" -F "minimum_severity=Info" -F "active=true" -F "verified=true" -F "scan_type=SonarQube Scan" -F "file=@sonar-report-v1.1.0_java-tomcat_Sonarcloud-v8.0.0.485.html;type=text/html" -F "product_name=TX-DevSecOps" -F "engagement_name=DevSecOps-TX" -F "close_old_findings=false" -F "push_to_jira=false"' 
+}
+ }
+ stage('Build') {
+ steps {
+ // for build
+ sh './gradlew clean build --no-daemon' 
+}
+ }
+ stage('Performance Testing') {
+ steps{
+ // for unit testing
+ junit(testResults: 'build/test-results/test/*.xml', allowEmptyResults : true, skipPublishingChecks: true)
+ }
+ post {
+ success {
+ publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: 'build/reports/tests/test/', reportFiles: 'index.html', reportName: 'HTML Report', reportTitles: '', useWrapperFileDirectly: true])
+ }
+ }
+ }
+
+ stage ('Staging') {
+ steps {
+ sshPublisher(publishers: [sshPublisherDesc(configName: 'docker-staging', transfers: [sshTransfer(cleanRemote: false, excludes: '', execCommand: 'cd /home/docker/vulnerable-staging && sudo docker images && sudo docker stop $(docker ps -a -q) && sudo docker rm $(docker ps -a -q) && sudo docker rmi $(docker images -a -q) && cd vulnerable-staging && docker-compose up -d', execTimeout: 120000, flatten: false, makeEmptyDirs: false, noDefaultExcludes: false, patternSeparator: '[, ]+', remoteDirectory: 'vulnerable-staging', remoteDirectorySDF: false, removePrefix: '', sourceFiles: '**/*')], usePromotionTimestamp: false, useWorkspaceInPromotion: false, verbose: true)]) 
+}
+ }
+
+
+ stage ('DAST') {
+ steps {
+ sh './scan_start.sh'
+ sh 'curl -X POST "http://192.168.6.241:8080/api/v2/import-scan/" -H "accept: application/json" -H "Authorization: Token c50c94737824e0bd561315ce8ee856849f5ba88f" -H "Content-Type: multipart/form-data" -H "X-CSRFToken: IoIe6juCf8QQxBkvAZR6aH0c0DvcZvsrcRlMvwNogRAsMfMfFBeTo9cC3yNMGdUp" -F "minimum_severity=Info" -F "active=true" -F "verified=true" -F "scan_type=Acunetix Scan" -F "file=@scan_report_dast.xml;type=text/xml" -F "product_name=TX-DevSecOps" -F "engagement_name=DevSecOps-TX" -F "close_old_findings=false" -F "push_to_jira=false"'
+ }
+ }
+ stage ('Docker Scan') {
+ steps {
+ sh 'trivy image --format json -o scan_report1.json sasanlabs/owasp-vulnerableapp'
+
+ sh 'curl -X POST "http://192.168.6.241:8080/api/v2/import-scan/" -H "accept: application/json" -H "Authorization: Token c50c94737824e0bd561315ce8ee856849f5ba88f" -H "Content-Type: multipart/form-data" -H "X-CSRFToken: IoIe6juCf8QQxBkvAZR6aH0c0DvcZvsrcRlMvwNogRAsMfMfFBeTo9cC3yNMGdUp" -F "minimum_severity=Info" -F "active=true" -F "verified=true" -F "scan_type=Trivy Scan" -F "file=@scan_report1.json;type=application/json" -F "product_name=TX-DevSecOps" -F "engagement_name=DevSecOps-TX" -F "close_old_findings=false" -F "push_to_jira=false"'
+
+ sh 'trivy image --format json -o scan_report2.json sasanlabs/owasp-vulnerableapp-jsp'
+
+ sh 'curl -X POST "http://192.168.6.241:8080/api/v2/import-scan/" -H "accept: application/json" -H "Authorization: Token c50c94737824e0bd561315ce8ee856849f5ba88f" -H "Content-Type: multipart/form-data" -H "X-CSRFToken: IoIe6juCf8QQxBkvAZR6aH0c0DvcZvsrcRlMvwNogRAsMfMfFBeTo9cC3yNMGdUp" -F "minimum_severity=Info" -F "active=true" -F "verified=true" -F "scan_type=Trivy Scan" -F "file=@scan_report2.json;type=application/json" -F "product_name=TX-DevSecOps" -F "engagement_name=DevSecOps-TX" -F "close_old_findings=false" -F "push_to_jira=false"'
+
+ sh 'trivy image --format json -o scan_report3.json sasanlabs/owasp-vulnerableapp-php'
+
+ sh 'curl -X POST "http://192.168.6.241:8080/api/v2/import-scan/" -H "accept: application/json" -H "Authorization: Token c50c94737824e0bd561315ce8ee856849f5ba88f" -H "Content-Type: multipart/form-data" -H "X-CSRFToken: IoIe6juCf8QQxBkvAZR6aH0c0DvcZvsrcRlMvwNogRAsMfMfFBeTo9cC3yNMGdUp" -F "minimum_severity=Info" -F "active=true" -F "verified=true" -F "scan_type=Trivy Scan" -F "file=@scan_report3.json;type=application/json" -F "product_name=TX-DevSecOps" -F "engagement_name=DevSecOps-TX" -F "close_old_findings=false" -F "push_to_jira=false"'\
+
+ sh 'trivy image --format json -o scan_report4.json sasanlabs/owasp-vulnerableapp-facade'
+
+ sh 'curl -X POST "http://192.168.6.241:8080/api/v2/import-scan/" -H "accept: application/json" -H "Authorization: Token c50c94737824e0bd561315ce8ee856849f5ba88f" -H "Content-Type: multipart/form-data" -H "X-CSRFToken: IoIe6juCf8QQxBkvAZR6aH0c0DvcZvsrcRlMvwNogRAsMfMfFBeTo9cC3yNMGdUp" -F "minimum_severity=Info" -F "active=true" -F "verified=true" -F "scan_type=Trivy Scan" -F "file=@scan_report4.json;type=application/json" -F "product_name=TX-DevSecOps" -F "engagement_name=DevSecOps-TX" -F "close_old_findings=false" -F "push_to_jira=false"'
+ }
+ }
+ stage ('Prod-approval') {
+ steps {
+ input "Deploy to prod?"
+ }
+ }
+
+ stage ('Production') {
+ steps {
+ sshPublisher(publishers: [sshPublisherDesc(configName: 'docker-production', transfers: [sshTransfer(cleanRemote: false, excludes: '', execCommand: 'docker rm $(docker ps -a -q) && docker rmi $(docker images -a -q) && cd vulnerable-prod && docker-compose up -d', execTimeout: 120000, flatten: false, makeEmptyDirs: false, noDefaultExcludes: false, patternSeparator: '[, ]+', remoteDirectory: 'vulnerable-prod', remoteDirectorySDF: false, removePrefix: '', sourceFiles: '**/*')], usePromotionTimestamp: false, useWorkspaceInPromotion: false, verbose: true)]) 
+}
+ } 
+
+stage ('Infra Scan') {
+ steps {
+ sh 'infconfig'
+ }
+ }
+ }
+}
+
+From <https://keep.google.com/u/0/#NOTE/1E3hSEObsoF7J43CBeEqzudjo0ND_65TUcq91og7sDSn0CNCcB0NOCgK5D7qE> 
+
